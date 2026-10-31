@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14110e">
+<title>PayChaser</title>
+<style>
+  :root {
+    --bg: #f6f1ea; --card: #fffdf9; --ink: #1c1814; --muted: #7a7064; --line: #e7dfd3;
+    --accent: #e4572e; --accent-ink: #fff; --ok: #1f7a4d; --warn: #b7791f; --bad: #c0392b; --info: #2f5d9e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14110e; --card: #1e1a16; --ink: #f3ece2; --muted: #a0958a; --line: #2f2923;
+            --ok: #54c38b; --warn: #e0b04f; --bad: #ff7a69; --info: #7fa6e0; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 16px 16px 96px; }
+  h1 { font-size: 26px; letter-spacing: -0.02em; margin: 8px 0 2px; }
+  h1 span { color: var(--accent); }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 28px 0 10px; }
+  .tag { color: var(--muted); margin: 0 0 12px; }
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .pill { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .pill.on { color: var(--ok); border-color: var(--ok); }
+  .pill.off { color: var(--bad); border-color: var(--bad); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+  .stat b { display: block; font-size: 22px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .stat small { color: var(--muted); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button { font: inherit; font-weight: 600; padding: 11px 16px; border-radius: 12px; border: 1px solid var(--line);
+           background: var(--card); color: var(--ink); cursor: pointer; min-height: 44px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  button.small { padding: 6px 12px; min-height: 36px; font-size: 14px; }
+  button:disabled { opacity: 0.5; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 10px; }
+  .top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+  .top b { font-variant-numeric: tabular-nums; }
+  .sub { color: var(--muted); font-size: 14px; }
+  .chip { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+  .chip.ok { color: var(--ok); } .chip.warn { color: var(--warn); } .chip.bad { color: var(--bad); }
+  .chip.info { color: var(--info); } .chip.muted { color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 14px; font-variant-numeric: tabular-nums; }
+  td { padding: 5px 0; border-top: 1px solid var(--line); }
+  td:last-child { text-align: right; }
+  .note { font-size: 13px; color: var(--warn); margin: 6px 0; }
+  .quote { font-size: 14px; background: var(--bg); border-radius: 10px; padding: 10px; margin: 8px 0; }
+  textarea, input { width: 100%; font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+                    background: var(--bg); color: var(--ink); margin: 4px 0 8px; }
+  label { font-size: 13px; color: var(--muted); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 14px; margin-top: 8px; min-height: 28px; }
+  .feed { font-size: 14px; }
+  .feed div { padding: 7px 0; border-top: 1px solid var(--line); }
+  .feed time { color: var(--muted); font-size: 12px; display: block; }
+  #toast { position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); max-width: 608px; margin: 0 auto;
+           background: var(--ink); color: var(--bg); padding: 12px 16px; border-radius: 12px; font-size: 15px; display: none; z-index: 5; }
+  .empty { color: var(--muted); padding: 18px 0; text-align: center; }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<div id="toast" role="status"></div>
+<script>
+const DAY = 86400000;
+const daysBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / DAY);
+const todayISO = () => new Date().toISOString().slice(0, 10);
+function h(tag, props = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') el.className = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) el.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  return el;
+}
+
+const store = { get: (k) => { try { return localStorage.getItem(k) || ''; } catch { return ''; } },
+                set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+
+let state = { health: null, stats: null, invoices: [], proposals: [], events: [] };
+const drafts = new Map();   
+const open = new Set();     
+let busy = false;
+
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    headers: { 'content-type': 'application/json', 'x-admin-token': store.get('pc_token') },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    const t = prompt('Admin token');
+    if (t) { store.set('pc_token', t); return api(method, path, body); }
+    throw new Error('Admin token required');
+  }
+  if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`);
+  return json;
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.style.display = 'block';
+  clearTimeout(toast.t); toast.t = setTimeout(() => (el.style.display = 'none'), 4500);
+}
+
+async function run(label, fn) {
+  if (busy) return;
+  busy = true; render();
+  try { const msg = await fn(); if (msg) toast(msg); }
+  catch (e) { toast(e.message); }
+  busy = false; await load();
+}
+
+const money = (v, c) => new Intl.NumberFormat(undefined, { style: 'currency', currency: c || 'USD' }).format(Number(v));
+
+function status(inv) {
+  const t = todayISO();
+  if (inv.status === 'PAID') return ['Paid', 'ok'];
+  if (inv.status === 'CANCELLED') return [inv.replacedBy ? 'Replaced by plan' : 'Cancelled', 'muted'];
+  if (inv.flag === 'disputed') return ['Disputed: needs you', 'warn'];
+  if (inv.flag === 'needs_human') return ['Needs you', 'warn'];
+  if (inv.promisedUntil && inv.promisedUntil >= t) return ['Promised by ' + inv.promisedUntil, 'info'];
+  const od = daysBetween(inv.dueDate, t);
+  return od > 0 ? [od + 'd overdue', 'bad'] : ['Due ' + inv.dueDate, 'muted'];
+}
+
+function statsView() {
+  const s = state.stats; if (!s) return null;
+  return h('div', { class: 'grid' },
+    h('div', { class: 'stat' }, h('b', {}, money(s.outstanding, s.currency)), h('small', {}, 'Outstanding')),
+    h('div', { class: 'stat' }, h('b', {}, money(s.overdue, s.currency)), h('small', {}, `Overdue (${s.overdueCount})`)),
+    h('div', { class: 'stat' }, h('b', {}, money(s.recovered, s.currency)), h('small', {}, 'Recovered by PayChaser')),
+    h('div', { class: 'stat' }, h('b', {}, s.avgDaysFromFirstReminderToPaid == null ? 'n/a' : s.avgDaysFromFirstReminderToPaid + ' days'),
+      h('small', {}, 'Reminder to paid, avg')));
+}
+
+function proposalView(p) {
+  const inv = state.invoices.find((i) => i.id === p.invoiceId);
+  return h('div', { class: 'card' },
+    h('div', { class: 'top' }, h('div', {}, h('b', {}, `${inv?.clientName ?? 'Client'} wants a payment plan`), h('div', { class: 'sub' }, p.summary)),
+      h('span', { class: 'chip warn' }, 'Needs approval')),
+    h('table', {}, p.plan.map((s) => h('tr', {}, h('td', {}, s.label), h('td', {}, s.dueDate), h('td', {}, money(s.amount, inv?.currency))))),
+    p.adjustments.map((a) => h('div', { class: 'note' }, 'Adjusted by your rules: ' + a)),
+    p.suggestedReply && h('div', { class: 'quote' }, 'Suggested reply: ' + p.suggestedReply),
+    h('div', { class: 'row' },
+      h('button', { class: 'primary', disabled: busy, onclick: () => run('approve', async () => {
+        const r = await api('POST', `/api/proposals/${p.id}/approve`);
+        return r.warning || 'Plan approved: installment invoices sent via PayPal.'; }) }, 'Approve & send'),
+      h('button', { disabled: busy, onclick: () => run('reject', async () => { await api('POST', `/api/proposals/${p.id}/reject`); return 'Proposal rejected.'; }) }, 'Reject')));
+}
+
+function invoiceView(inv) {
+  const [label, tone] = status(inv);
+  const isOpen = open.has(inv.id);
+  const card = h('div', { class: 'card' },
+    h('div', { class: 'top' },
+      h('div', {}, h('b', {}, inv.clientName), h('div', { class: 'sub' }, `#${inv.number} · ${inv.description}`)),
+      h('div', { style: 'text-align:right' }, h('b', {}, money(inv.amount, inv.currency)), h('div', {}, h('span', { class: 'chip ' + tone }, label)))));
+  if (inv.status === 'SENT') {
+    const body = h('div', {},
+      inv.reminders.length ? inv.reminders.map((r) => h('div', { class: 'quote' }, `${r.at.slice(0, 10)} · ${r.tone} · ${r.source}: ${r.subject}`)) : h('div', { class: 'sub' }, 'No reminders sent yet.'),
+      h('label', {}, 'Paste the client’s reply'),
+      h('textarea', { rows: 3, placeholder: 'e.g. Sorry, can I pay half now and half next month?', oninput: (e) => drafts.set(inv.id, e.target.value) }, drafts.get(inv.id) || ''),
+      h('div', { class: 'row' },
+        h('button', { class: 'small primary', disabled: busy, onclick: () => run('reply', async () => {
+          const text = (drafts.get(inv.id) || '').trim(); if (!text) throw new Error('Paste a reply first.');
+          const r = await api('POST', `/api/invoices/${inv.id}/replies`, { text }); drafts.delete(inv.id);
+          return r.proposal ? 'Payment plan drafted: approve it above.' : r.applied?.type === 'promise' ? 'Reminders paused until ' + r.applied.until : r.applied?.type === 'escalate' ? 'Marked as disputed: reminders stopped.' : r.summary; }) }, 'Analyse reply'),
+        state.health?.demoMode && h('button', { class: 'small', disabled: busy, onclick: () => run('age', async () => { await api('POST', `/api/invoices/${inv.id}/backdate`, { days: 20 }); return 'Demo: invoice aged by 20 days.'; }) }, 'Demo: age 20 days')));
+    const det = h('details', isOpen ? { open: '' } : {}, h('summary', {}, 'Reminders & replies'), body);
+    det.addEventListener('toggle', () => (det.open ? open.add(inv.id) : open.delete(inv.id)));
+    card.append(det);
+  }
+  return card;
+}
+
+function formView() {
+  const f = {};
+  const field = (name, label, props = {}) => h('div', {}, h('label', {}, label), h('input', { ...props, oninput: (e) => (f[name] = e.target.value) }));
+  return h('details', { class: 'card' }, h('summary', { style: 'margin:0' }, 'New invoice'),
+    field('clientName', 'Client name', { autocomplete: 'off' }), field('clientEmail', 'Client email (use a PayPal sandbox buyer)', { type: 'email' }),
+    field('description', 'Description'), field('amount', 'Amount', { inputmode: 'decimal' }), field('dueInDays', 'Due in days (default 14)', { inputmode: 'numeric' }),
+    h('button', { class: 'primary', disabled: busy, onclick: () => run('create', async () => {
+      const body = { ...f }; if (!body.dueInDays) delete body.dueInDays;
+      await api('POST', '/api/invoices', body); return 'Invoice created and sent through PayPal.'; }) }, 'Create & send'));
+}
+
+function render() {
+  const app = document.getElementById('app'); const hl = state.health;
+  const sweepBtn = (dry) => h('button', { class: dry ? '' : 'primary', disabled: busy, onclick: () => run('sweep', async () => {
+    const r = await api('POST', '/api/sweep', { dryRun: dry });
+    const n = r.results.filter((x) => x.action === (dry ? 'would_remind' : 'reminded')).length;
+    return dry ? `Preview: ${n} reminder(s) would go out.` : `${n} reminder(s) sent. ${r.results.filter((x) => x.action === 'paid').length} newly paid.`; }) }, dry ? 'Preview' : 'Run chase now');
+  const parts = [
+    h('h1', {}, 'Pay', h('span', {}, 'Chaser')),
+    h('p', { class: 'tag' }, 'An agent that gets your invoices paid, within your rules.'),
+    hl && h('div', { class: 'pills' },
+      h('span', { class: 'pill ' + (hl.paypal ? 'on' : 'off') }, hl.paypal ? 'PayPal connected' : 'PayPal not configured'),
+      h('span', { class: 'pill ' + (hl.ai ? 'on' : '') }, hl.ai ? 'AI: ' + hl.model : 'AI: rules fallback'),
+      hl.demoMode && h('span', { class: 'pill' }, 'Demo mode')),
+    statsView(),
+    h('div', { class: 'row', style: 'margin-top:12px' }, sweepBtn(false), sweepBtn(true)),
+    state.proposals.length ? h('h2', {}, 'Needs your approval') : null, state.proposals.map(proposalView),
+    h('h2', {}, 'Invoices'), formView(),
+    state.invoices.length ? state.invoices.map(invoiceView) : h('div', { class: 'empty' }, 'No invoices yet. Create one above.'),
+    h('h2', {}, 'Activity'),
+    h('div', { class: 'feed card' }, state.events.length ? state.events.slice(0, 12).map((e) =>
+      h('div', {}, h('time', {}, new Date(e.at).toLocaleString()), e.type.replaceAll('_', ' ') + (e.summary ? ': ' + e.summary : e.subject ? ': ' + e.subject : ''))) : h('div', { class: 'empty' }, 'Nothing yet.'))];
+  app.replaceChildren(...parts.flat(Infinity).filter(Boolean));
+}
+
+async function load() {
+  try {
+    const [health, stats, invoices, proposals, events] = await Promise.all([
+      fetch('/api/health').then((r) => r.json()), api('GET', '/api/stats'), api('GET', '/api/invoices'),
+      api('GET', '/api/proposals'), api('GET', '/api/events')]);
+    state = { health, stats, invoices, proposals, events };
+  } catch (e) { toast(e.message); }
+  render();
+}
+load();
+</script>
+</body>
+</html>
