@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: paychaser
+    runtime: node
+    buildCommand: echo "no build step"
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ADMIN_TOKEN
+        generateValue: true
+      - key: PAYPAL_BASE_URL
+        value: https://api-m.sandbox.paypal.com
+      - key: AI_MODEL
+        value: claude-sonnet-5-5
+      - key: DEMO_MODE
+        value: "1"
